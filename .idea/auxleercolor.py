@@ -11,7 +11,7 @@ def get_color_at_click(event, x, y, flags, param):
         print(f"Clicked at ({x}, {y}) - RGB Color: {rgb_color}")
 
 # Capture video from webcam
-webcam = cv2.VideoCapture(0)
+webcam = cv2.VideoCapture(1)
 
 # Create a named window and set the mouse callback function
 cv2.namedWindow('Color Detection at Click')

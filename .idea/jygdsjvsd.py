@@ -1,38 +1,105 @@
 import numpy as np
 import cv2
+import serial, time
 
-# Capturing video through webcam
-webcam = cv2.VideoCapture(0)
+# Conexión al puerto serial
+arduino = serial.Serial('COM8', 9600, timeout=1)
+time.sleep(1)  # Espera para que se establezca la conexión
+print("se ejecutó correctamente")
 
-# Function to draw a grid of colored squares and return their positions
-def draw_color_grid(frame):
+# Captura de video
+webcam = cv2.VideoCapture(1)
+
+# Variables globales para el arrastre
+dragging = False
+selected_rect = None
+offset_x = 0
+offset_y = 0
+
+# Dimensiones de los rectángulos
+rect_width = 0
+rect_height = 0
+rectangles = []
+
+# Colores y sus nombres
+expected_colors = ["Rosa", "Celeste", "Fuego", "Bordo", "Verde Lima", "Verde Oscuro", "Azul", "Naranja", "Marrón"]
+
+# Rango de colores (HSV) para cada color esperado
+color_ranges = {
+    "Rosa": (np.array([169, 98, 98], np.uint8), np.array([179, 255, 255], np.uint8)),
+    "Celeste": (np.array([29, 131, 187], np.uint8), np.array([39, 255, 255], np.uint8)),
+    "Fuego": (np.array([202, 84, 70], np.uint8), np.array([212, 255, 255], np.uint8)),
+    "Bordo": (np.array([158, 78, 101], np.uint8), np.array([168, 255, 255], np.uint8)),
+    "Verde Lima": (np.array([134, 148, 72], np.uint8), np.array([144, 255, 255], np.uint8)),
+    "Verde Oscuro": (np.array([11, 107, 99], np.uint8), np.array([21, 255, 255], np.uint8)),
+    "Azul": (np.array([4, 94, 169], np.uint8), np.array([14, 255, 255], np.uint8)),
+    "Naranja": (np.array([195, 134, 102], np.uint8), np.array([205, 255, 255], np.uint8)),
+    "Marrón": (np.array([95, 84, 104], np.uint8), np.array([105, 255, 255], np.uint8))
+}
+
+# Función para inicializar la cuadrícula de rectángulos
+def initialize_grid_positions(frame):
+    global rect_width, rect_height, rectangles
+
     height, width, _ = frame.shape
-    # Define square size and spacing based on screen size
-    square_size = min(width, height) // 10  # Adjusted size for 9 columns
-    padding_x = (width - (9 * square_size)) // 10  # Horizontal padding
-    padding_y = (height - (3 * square_size)) // 4  # Vertical padding
+    rect_width = min(width, height) // 15
+    rect_height = rect_width * 2  # Altura doble
 
-    positions = []
-    # Define more colors to cover 9 columns (alternating colors per column)
-    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (0, 255, 255), 
-              (255, 255, 0), (255, 0, 255), (128, 0, 128), (255, 165, 0), (0, 128, 128)]
+    padding_x = (width - (9 * rect_width)) // 10
+    padding_y = (height - (3 * rect_height)) // 4
+
+    rectangles.clear()
+    # Colores BGR para los recuadros
+    colors = [(169, 98, 98), (29, 131, 187), (202, 84, 70), (158, 78, 101), 
+              (134, 148, 72), (11, 107, 99), (4, 94, 169), (195, 134, 102), (95, 84, 104)]
     
     for row in range(3):
         row_positions = []
         for col in range(9):
-            # Calculate top-left corner of the square
-            x = padding_x + col * (square_size + padding_x)
-            y = padding_y + row * (square_size + padding_y)
+            x = padding_x + col * (rect_width + padding_x)
+            y = padding_y + row * (rect_height + padding_y)
+            row_positions.append([x, y, x + rect_width, y + rect_height, colors[col % len(colors)]])
+        rectangles.append(row_positions)
 
-            # Draw rectangle (hollow square)
-            color = colors[col % len(colors)]  # Cycle through colors list
-            cv2.rectangle(frame, (x, y), (x + square_size, y + square_size), color, 2)
+# Función para dibujar los rectángulos en el marco
+def draw_color_grid(frame):
+    for row_rectangles in rectangles:
+        for rect in row_rectangles:
+            color = rect[4]
+            cv2.rectangle(frame, (rect[0], rect[1]), (rect[2], rect[3]), color, 2)
 
-            # Save position of the rectangle
-            row_positions.append((x, y, x + square_size, y + square_size))
-        positions.append(row_positions)
+# Funciones adicionales...
+# (Resto del código permanece igual)
+# Function to check if a point is inside a rectangle
+def point_in_rectangle(x, y, rect):
+    return rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
 
-    return positions
+# Mouse callback function to handle dragging
+def mouse_callback(event, x, y, flags, param):
+    global dragging, selected_rect, offset_x, offset_y
+
+    if event == cv2.EVENT_LBUTTONDOWN:
+        for row_index, row_rectangles in enumerate(rectangles):
+            for col_index, rect in enumerate(row_rectangles):
+                if point_in_rectangle(x, y, rect):
+                    dragging = True
+                    selected_rect = (row_index, col_index)
+                    offset_x = x - rect[0]
+                    offset_y = y - rect[1]
+                    return
+
+    elif event == cv2.EVENT_MOUSEMOVE:
+        if dragging and selected_rect is not None:
+            row_index, col_index = selected_rect
+            rect = rectangles[row_index][col_index]
+            rect[0] = x - offset_x
+            rect[1] = y - offset_y
+            rect[2] = rect[0] + rect_width
+            rect[3] = rect[1] + rect_height
+
+    elif event == cv2.EVENT_LBUTTONUP:
+        dragging = False
+        selected_rect = None
 
 # Function to restrict mask to a specific rectangle
 def apply_mask_to_rectangle(mask, rectangle):
@@ -47,84 +114,66 @@ def is_color_detected(mask, rectangle):
     mask_section = mask[y1:y2, x1:x2]
     return np.any(mask_section > 0)
 
-# Function to add detection text inside rectangles
-def add_detection_text(frame, rectangle, color_name):
+# Function to add detection text inside rectangles with short labels
+def add_detection_text(frame, rectangle, label):
     x1, y1, x2, y2 = rectangle
     text_position = (x1 + 10, y1 + (y2 - y1) // 2)
-    cv2.putText(frame, color_name, text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    cv2.putText(frame, label, text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-# Function to check if a full row is correct based on color detection for each column
-def check_row_correctness(red_mask, green_mask, blue_mask, row_rectangles, frame, colors):
-    row_correct = True
-    for idx, rectangle in enumerate(row_rectangles):
-        color = colors[idx % len(colors)]  # Get the expected color for this square
-        if color == "Red":
-            detected = is_color_detected(red_mask, rectangle)
-            if detected:
-                add_detection_text(frame, rectangle, "Red Detected")
-            row_correct &= detected
-        elif color == "Green":
-            detected = is_color_detected(green_mask, rectangle)
-            if detected:
-                add_detection_text(frame, rectangle, "Green Detected")
-            row_correct &= detected
-        elif color == "Blue":
-            detected = is_color_detected(blue_mask, rectangle)
-            if detected:
-                add_detection_text(frame, rectangle, "Blue Detected")
-            row_correct &= detected
-    return row_correct
+# Main loop
+cv2.namedWindow("Multiple Color Detection in Real-Time")
+cv2.setMouseCallback("Multiple Color Detection in Real-Time", mouse_callback)
 
-# Define expected colors for each square in a row (9 colors)
-expected_colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Purple", "Orange", "Teal"]
-
-# Start a while loop
 while True:
-    # Reading the video from the webcam in image frames
+    # Read frame from webcam
     _, imageFrame = webcam.read()
+
+    # Initialize the grid positions only once
+    if not rectangles:
+        initialize_grid_positions(imageFrame)
 
     # Convert the imageFrame from BGR to HSV color space
     hsvFrame = cv2.cvtColor(imageFrame, cv2.COLOR_BGR2HSV)
 
-    # Define color ranges
-    red_lower = np.array([136, 87, 111], np.uint8)
-    red_upper = np.array([180, 255, 255], np.uint8)
-    green_lower = np.array([25, 52, 72], np.uint8)
-    green_upper = np.array([102, 255, 255], np.uint8)
-    blue_lower = np.array([94, 80, 2], np.uint8)
-    blue_upper = np.array([120, 255, 255], np.uint8)
+    # Draw the grid based on current positions
+    draw_color_grid(imageFrame)
 
-    # Create masks for red, green, and blue
-    red_mask = cv2.inRange(hsvFrame, red_lower, red_upper)
-    green_mask = cv2.inRange(hsvFrame, green_lower, green_upper)
-    blue_mask = cv2.inRange(hsvFrame, blue_lower, blue_upper)
+    # Initialize flag for all rows being correct
+    all_rows_correct = True
 
-    # Morphological Transform, Dilation for each color
-    kernel = np.ones((5, 5), "uint8")
-    red_mask = cv2.dilate(red_mask, kernel)
-    green_mask = cv2.dilate(green_mask, kernel)
-    blue_mask = cv2.dilate(blue_mask, kernel)
+    # Check each row for the correct colors
+    for row_index, row_rectangles in enumerate(rectangles):
+        row_correct = True  # Flag to track if current row is correct
 
-    # Draw the 3x9 grid of hollow colored squares and get their positions
-    rectangles = draw_color_grid(imageFrame)
+        for col_index, rectangle in enumerate(row_rectangles):
+            color_name = expected_colors[col_index]
+            color_range = color_ranges[color_name]
+            mask = cv2.inRange(hsvFrame, color_range[0], color_range[1])
+            mask = apply_mask_to_rectangle(mask, rectangle[:4])
 
-    # Check each row for correctness
-    row_1_correct = check_row_correctness(red_mask, green_mask, blue_mask, rectangles[0], imageFrame, expected_colors)
-    row_2_correct = check_row_correctness(red_mask, green_mask, blue_mask, rectangles[1], imageFrame, expected_colors)
-    row_3_correct = check_row_correctness(red_mask, green_mask, blue_mask, rectangles[2], imageFrame, expected_colors)
+            # Check if the correct color is detected for the rectangle
+            if is_color_detected(mask, rectangle[:4]):
+                label = f"C{col_index + 1}"  # Short label format
+                add_detection_text(imageFrame, rectangle[:4], label)
+            else:
+                row_correct = False  # Mark row as incorrect if any color is missing
 
-    # Print the correct row if the colors are detected in the right order
-    if row_1_correct:
-        print("Fila 1 correcta")
-    if row_2_correct:
-        print("Fila 2 correcta")
-    if row_3_correct:
-        print("Fila 3 correcta")
+        # If row is correct, print row number
+        if row_correct:
+            print(f"Fila {row_index + 1} correcta")
+            
+            
+        all_rows_correct &= row_correct  # Update all_rows_correct flag
+
+    # If all rows are correct, print "si"
+    if all_rows_correct:
+        print("todas correctas pancho")
+        arduino.write(b'5')
 
     # Show the image with the grid and detection texts
     cv2.imshow("Multiple Color Detection in Real-Time", imageFrame)
 
-    # Program Termination
+    # Exit on pressing 'q'
     if cv2.waitKey(10) & 0xFF == ord('q'):
         webcam.release()
         cv2.destroyAllWindows()

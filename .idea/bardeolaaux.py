@@ -4,11 +4,11 @@ import serial, time
 
 # Conexión al puerto serial
 arduino = serial.Serial('COM8', 9600, timeout=1)
-time.sleep(2)  # Espera para que se establezca la conexión
-print("se ejecuto correctamente")
+time.sleep(1)  # Espera para que se establezca la conexión
+print("se ejecutó correctamente")
 
-# Capturing video through webcam
-webcam = cv2.VideoCapture(0)
+# Captura de video
+webcam = cv2.VideoCapture(1)
 
 # Variables globales para el arrastre
 dragging = False
@@ -21,36 +21,37 @@ rect_width = 0
 rect_height = 0
 rectangles = []
 
-# Expected colors for each square in a row (9 colors)
-expected_colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Purple", "Orange", "Teal"]
+# Colores y sus nombres
+expected_colors = ["Rosa", "Celeste", "Fuego", "Bordo", "Verde Lima", "Verde Oscuro", "Azul", "Naranja", "Marrón"]
 
-# Define color ranges for each expected color
+# Conversión de colores RGB a HSV
 color_ranges = {
-    "Red": (np.array([136, 87, 111], np.uint8), np.array([180, 255, 255], np.uint8)),
-    "Green": (np.array([25, 52, 72], np.uint8), np.array([102, 255, 255], np.uint8)),
-    "Blue": (np.array([94, 80, 2], np.uint8), np.array([120, 255, 255], np.uint8)),
-    "Yellow": (np.array([22, 93, 0], np.uint8), np.array([45, 255, 255], np.uint8)),
-    "Cyan": (np.array([78, 158, 124], np.uint8), np.array([99, 255, 255], np.uint8)),
-    "Magenta": (np.array([125, 60, 60], np.uint8), np.array([150, 255, 255], np.uint8)),
-    "Purple": (np.array([129, 50, 70], np.uint8), np.array([158, 255, 255], np.uint8)),
-    "Orange": (np.array([5, 50, 50], np.uint8), np.array([15, 255, 255], np.uint8)),
-    "Teal": (np.array([85, 50, 50], np.uint8), np.array([95, 255, 255], np.uint8))
+    "Rosa": (np.array([164, 92, 94], np.uint8), np.array([174, 110, 110], np.uint8)),
+    "Celeste": (np.array([20, 178, 125], np.uint8), np.array([30, 238, 225], np.uint8)),
+    "Fuego": (np.array([115, 167, 110], np.uint8), np.array([125, 247, 210], np.uint8)),
+    "Bordo": (np.array([130, 127, 76], np.uint8), np.array([140, 207, 176], np.uint8)),
+    "Verde Lima": (np.array([80, 118, 122], np.uint8), np.array([90, 188, 222], np.uint8)),
+    "Verde Oscuro": (np.array([80, 77, 72], np.uint8), np.array([90, 187, 172], np.uint8)),
+    "Azul": (np.array([105, 194, 69], np.uint8), np.array([115, 254, 169], np.uint8)),
+    "Naranja": (np.array([15, 175, 152], np.uint8), np.array([25, 235, 202], np.uint8)),
+    "Marrón": (np.array([110, 74, 84], np.uint8), np.array([120, 164, 184], np.uint8))
 }
 
-# Function to initialize the grid of rectangles
+# Función para inicializar la cuadrícula de rectángulos
 def initialize_grid_positions(frame):
     global rect_width, rect_height, rectangles
 
     height, width, _ = frame.shape
-    rect_width = min(width, height) // 10
-    rect_height = rect_width * 2  # Double the height
+    rect_width = min(width, height) // 15
+    rect_height = rect_width * 2  # Altura doble
 
     padding_x = (width - (9 * rect_width)) // 10
     padding_y = (height - (3 * rect_height)) // 4
 
     rectangles.clear()
-    colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (0, 255, 255), 
-              (255, 255, 0), (255, 0, 255), (128, 0, 128), (255, 165, 0), (0, 128, 128)]
+    # Colores BGR para los recuadros
+    colors = [(98, 98, 169), (29, 131, 187), (202, 84, 70), (158, 78, 101), 
+              (134, 148, 72), (11, 107, 99), (4, 94, 169), (195, 134, 102), (95, 84, 104)]
     
     for row in range(3):
         row_positions = []
@@ -60,12 +61,15 @@ def initialize_grid_positions(frame):
             row_positions.append([x, y, x + rect_width, y + rect_height, colors[col % len(colors)]])
         rectangles.append(row_positions)
 
-# Function to draw the rectangles on the frame
+# Función para dibujar los rectángulos en el marco
 def draw_color_grid(frame):
     for row_rectangles in rectangles:
         for rect in row_rectangles:
             color = rect[4]
             cv2.rectangle(frame, (rect[0], rect[1]), (rect[2], rect[3]), color, 2)
+
+# Resto del código permanece igual...
+
 
 # Function to check if a point is inside a rectangle
 def point_in_rectangle(x, y, rect):
@@ -165,10 +169,6 @@ while True:
     # If all rows are correct, print "si"
     if all_rows_correct:
         print("todas correctas pancho")
-        arduino.write(b'5')
-    # Check for input "deyverson" from terminal
-    user_input = input("Escribe un comando: ")
-    if user_input.lower() == "deyverson":
         arduino.write(b'5')
 
     # Show the image with the grid and detection texts

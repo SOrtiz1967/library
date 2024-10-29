@@ -4,7 +4,7 @@ import serial, time
 arduino = serial.Serial('COM8', 9600, timeout=1)
 time.sleep(2)  # Espera para que se establezca la conexión
 print("se ejecuto correctamente")
-arduino.write(b'1')
+arduino.write(b'5')
 #arduino.write(b'A')
 
 arduino.close()
